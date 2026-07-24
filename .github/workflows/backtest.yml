@@ -1,0 +1,22 @@
+name: backtest
+on:
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run backtest
+        run: python backtest_many.py
+      - name: Save results
+        run: |
+          git config user.name  "paper-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add BACKTEST_RESULTS.md
+          git commit -m "backtest results" || echo "nothing"
+          git push
