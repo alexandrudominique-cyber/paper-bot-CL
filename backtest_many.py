@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Broad Larsson backtest across ~100 coins. Runs on GitHub Actions. No keys/money."""
+"""Broad Larsson backtest + realistic $10k portfolio. Runs on GitHub Actions. No keys/money."""
 import json, time, datetime
 import urllib.request
+from collections import defaultdict
 
 FEE = 0.0015
+CAP = 0.08   # max 8% of account per coin (~12 full positions)
 COINS = ("BTC ETH BNB SOL XRP ADA DOGE TRX AVAX LINK DOT MATIC LTC BCH NEAR UNI ATOM XLM "
          "ETC FIL HBAR APT ARB OP INJ AAVE GRT ALGO QNT EGLD SAND MANA AXS THETA XTZ EOS "
          "FLOW CHZ ZEC ENJ BAT DASH ZIL WAVES KSM CRV COMP SNX YFI SUSHI 1INCH LRC RUNE "
@@ -44,7 +46,7 @@ def backtest_coin(high, low, close):
         peak=max(peak,eq); mdd=min(mdd, eq/peak-1)
     return eq, close[-1]/close[0], mdd, trades
 
-def fetch(sym, pages=2):
+def fetch(sym, pages=3):
     base="https://data-api.binance.vision/api/v3/klines"
     allrows=[]; end=None
     for _ in range(pages):
@@ -62,36 +64,46 @@ def fetch(sym, pages=2):
     for k in sorted(allrows, key=lambda x:x[0]):
         if k[0] in seen: continue
         seen.add(k[0]); rows.append(k)
-    return ([float(x[2]) for x in rows],[float(x[3]) for x in rows],[float(x[4]) for x in rows])
+    return ([float(x[2]) for x in rows],[float(x[3]) for x in rows],
+            [float(x[4]) for x in rows],[x[0] for x in rows])
+
+def sim_portfolio(retd, sigd, days):
+    dates=sorted(retd)[-days:] if days else sorted(retd)
+    eq=10000.0; peak=eq; mdd=0.0; prev={}
+    for d in dates:
+        golds=[c for c in sigd[d] if sigd[d].get(c)==1 and c in retd[d]]
+        w=min(CAP,1.0/len(golds)) if golds else 0.0
+        weights={c:w for c in golds}
+        pr=sum(weights[c]*retd[d].get(c,0.0) for c in weights)
+        allc=set(weights)|set(prev); to=sum(abs(weights.get(c,0)-prev.get(c,0)) for c in allc)
+        eq*=(1+pr-to*FEE); peak=max(peak,eq); mdd=min(mdd, eq/peak-1); prev=weights
+    return eq, mdd, len(dates)
 
 def main():
-    res=[]
+    res=[]; retd=defaultdict(dict); sigd=defaultdict(dict)
     for i,c in enumerate(COINS):
-        h,l,cl=fetch(c)
+        h,l,cl,ts=fetch(c)
         if len(cl)<250: continue
         eq,hold,mdd,tr=backtest_coin(h,l,cl)
-        res.append((c,eq,hold,mdd,tr,len(cl)))
-        print(f"{i+1} {c}: {eq:.2f}x vs {hold:.2f}x")
+        res.append((c,eq,hold,mdd,tr))
+        reg=regime_series(h,l)
+        dts=[datetime.datetime.utcfromtimestamp(t//1000).strftime('%Y-%m-%d') for t in ts]
+        for j in range(1,len(cl)):
+            retd[dts[j]][c]=cl[j]/cl[j-1]-1; sigd[dts[j]][c]=reg[j-1]
+        print(f"{i+1} {c}")
     n=len(res)
     if n==0:
-        open("BACKTEST_RESULTS.md","w").write("No data fetched."); return
+        open("BACKTEST_RESULTS.md","w").write("No data."); return
+    eq3,dd3,d3=sim_portfolio(retd,sigd,1095)
+    eqA,ddA,dA=sim_portfolio(retd,sigd,0)
     beat=sum(1 for r in res if r[1]>r[2]); blew=sum(1 for r in res if r[3]<-0.80)
-    med=lambda xs: sorted(xs)[len(xs)//2]
-    ms=med([r[1] for r in res]); mh=med([r[2] for r in res]); mdd=med([r[3] for r in res])
-    ps=sum(r[1] for r in res)/n; ph=sum(r[2] for r in res)/n
     res.sort(key=lambda r:r[1], reverse=True)
     today=datetime.datetime.utcnow().strftime("%Y-%m-%d")
     L=[f"# Larsson broad backtest - {n} coins - {today}","",
-       f"Fees {FEE*100:.2f}%/trade. Survivorship-biased (today's coins).","",
-       "## Headline",
-       f"- Beat buy and hold: **{beat}/{n}** ({beat*100//n}%)",
-       f"- Still blew up (>80% drop): **{blew}/{n}**",
-       f"- Median coin: strategy **{ms:.2f}x** vs hold **{mh:.2f}x** (median worst drop {mdd*100:.0f}%)",
-       f"- Trade-everything equal basket: strategy **{ps:.2f}x** vs hold **{ph:.2f}x**","",
+       "## REAL BOT: $10,000 start, max 8% per coin",
+       f"- **Last 3 years (~{d3} days): ${eq3:,.0f}  ({eq3/10000:.2f}x)  worst drop {dd3*100:.0f}%**",
+       f"- Full window (~{dA} days): ${eqA:,.0f}  ({eqA/10000:.2f}x)  worst drop {ddA*100:.0f}%","",
+       "## Per-coin (standalone)",
+       f"- Strategy beat hold on {beat}/{n} coins; {blew}/{n} still dropped >80%","",
        "| Coin | Strategy | Hold | MaxDD | Trades |","|---|---|---|---|---|"]
-    for c,eq,hold,dd,tr,_ in res:
-        L.append(f"| {c} | {eq:.2f}x | {hold:.2f}x | {dd*100:.0f}% | {tr} |")
-    open("BACKTEST_RESULTS.md","w").write("\n".join(L))
-
-if __name__=="__main__":
-    main()
+    for
