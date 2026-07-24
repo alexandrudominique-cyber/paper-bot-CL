@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Broad Larsson backtest + realistic $10k portfolio. Runs on GitHub Actions. No keys/money."""
-import json, time, datetime
+"""Broad Larsson backtest + realistic $10k portfolio. Robust version."""
+import json, time, datetime, traceback
 import urllib.request
 from collections import defaultdict
 
 FEE = 0.0015
-CAP = 0.08   # max 8% of account per coin (~12 full positions)
+CAP = 0.08
 COINS = ("BTC ETH BNB SOL XRP ADA DOGE TRX AVAX LINK DOT MATIC LTC BCH NEAR UNI ATOM XLM "
          "ETC FIL HBAR APT ARB OP INJ AAVE GRT ALGO QNT EGLD SAND MANA AXS THETA XTZ EOS "
          "FLOW CHZ ZEC ENJ BAT DASH ZIL WAVES KSM CRV COMP SNX YFI SUSHI 1INCH LRC RUNE "
@@ -55,7 +55,7 @@ def fetch(sym, pages=3):
         try:
             with urllib.request.urlopen(url,timeout=30) as r: data=json.load(r)
         except Exception: break
-        if not data: break
+        if not isinstance(data, list) or not data: break
         allrows = data + allrows
         end = data[0][0]-1
         if len(data)<1000: break
@@ -65,7 +65,7 @@ def fetch(sym, pages=3):
         if k[0] in seen: continue
         seen.add(k[0]); rows.append(k)
     return ([float(x[2]) for x in rows],[float(x[3]) for x in rows],
-            [float(x[4]) for x in rows],[x[0] for x in rows])
+            [float(x[4]) for x in rows],[int(x[0]) for x in rows])
 
 def sim_portfolio(retd, sigd, days):
     dates=sorted(retd)[-days:] if days else sorted(retd)
@@ -80,30 +80,39 @@ def sim_portfolio(retd, sigd, days):
     return eq, mdd, len(dates)
 
 def main():
-    res=[]; retd=defaultdict(dict); sigd=defaultdict(dict)
-    for i,c in enumerate(COINS):
-        h,l,cl,ts=fetch(c)
-        if len(cl)<250: continue
-        eq,hold,mdd,tr=backtest_coin(h,l,cl)
-        res.append((c,eq,hold,mdd,tr))
-        reg=regime_series(h,l)
-        dts=[datetime.datetime.utcfromtimestamp(t//1000).strftime('%Y-%m-%d') for t in ts]
-        for j in range(1,len(cl)):
-            retd[dts[j]][c]=cl[j]/cl[j-1]-1; sigd[dts[j]][c]=reg[j-1]
-        print(f"{i+1} {c}")
-    n=len(res)
-    if n==0:
-        open("BACKTEST_RESULTS.md","w").write("No data."); return
-    eq3,dd3,d3=sim_portfolio(retd,sigd,1095)
-    eqA,ddA,dA=sim_portfolio(retd,sigd,0)
-    beat=sum(1 for r in res if r[1]>r[2]); blew=sum(1 for r in res if r[3]<-0.80)
-    res.sort(key=lambda r:r[1], reverse=True)
-    today=datetime.datetime.utcnow().strftime("%Y-%m-%d")
-    L=[f"# Larsson broad backtest - {n} coins - {today}","",
-       "## REAL BOT: $10,000 start, max 8% per coin",
-       f"- **Last 3 years (~{d3} days): ${eq3:,.0f}  ({eq3/10000:.2f}x)  worst drop {dd3*100:.0f}%**",
-       f"- Full window (~{dA} days): ${eqA:,.0f}  ({eqA/10000:.2f}x)  worst drop {ddA*100:.0f}%","",
-       "## Per-coin (standalone)",
-       f"- Strategy beat hold on {beat}/{n} coins; {blew}/{n} still dropped >80%","",
-       "| Coin | Strategy | Hold | MaxDD | Trades |","|---|---|---|---|---|"]
-    for
+    try:
+        res=[]; retd=defaultdict(dict); sigd=defaultdict(dict)
+        for i,c in enumerate(COINS):
+            try:
+                h,l,cl,ts=fetch(c)
+                if len(cl)<250: continue
+                eq,hold,mdd,tr=backtest_coin(h,l,cl)
+                res.append((c,eq,hold,mdd,tr))
+                reg=regime_series(h,l)
+                dts=[datetime.datetime.utcfromtimestamp(t//1000).strftime('%Y-%m-%d') for t in ts]
+                for j in range(1,len(cl)):
+                    retd[dts[j]][c]=cl[j]/cl[j-1]-1; sigd[dts[j]][c]=reg[j-1]
+            except Exception as e:
+                print("skip",c,e); continue
+        n=len(res)
+        if n==0:
+            open("BACKTEST_RESULTS.md","w").write("No data fetched (network/geo?)."); return
+        eq3,dd3,d3=sim_portfolio(retd,sigd,1095)
+        eqA,ddA,dA=sim_portfolio(retd,sigd,0)
+        beat=sum(1 for r in res if r[1]>r[2]); blew=sum(1 for r in res if r[3]<-0.80)
+        res.sort(key=lambda r:r[1], reverse=True)
+        today=datetime.datetime.utcnow().strftime("%Y-%m-%d")
+        L=[f"# Larsson broad backtest - {n} coins - {today}","",
+           "## REAL BOT: $10,000 start, max 8% per coin",
+           f"- **Last 3 years (~{d3} days): ${eq3:,.0f}  ({eq3/10000:.2f}x)  worst drop {dd3*100:.0f}%**",
+           f"- Full window (~{dA} days): ${eqA:,.0f}  ({eqA/10000:.2f}x)  worst drop {ddA*100:.0f}%","",
+           f"## Per-coin: strategy beat hold on {beat}/{n}; {blew}/{n} still dropped >80%","",
+           "| Coin | Strategy | Hold | MaxDD | Trades |","|---|---|---|---|---|"]
+        for c,eq,hold,dd,tr in res:
+            L.append(f"| {c} | {eq:.2f}x | {hold:.2f}x | {dd*100:.0f}% | {tr} |")
+        open("BACKTEST_RESULTS.md","w").write("\n".join(L))
+    except Exception:
+        open("BACKTEST_RESULTS.md","w").write("# ERROR\n\n```\n"+traceback.format_exc()+"\n```")
+
+if __name__=="__main__":
+    main()
