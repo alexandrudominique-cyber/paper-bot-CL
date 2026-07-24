@@ -1,0 +1,13 @@
+# Paper bot status - 2026-07-24
+
+**Account value: $10,000.00**  (started at $10,000)
+Cash: $10,000.00  |  Run #1
+
+| Coin | Signal | Position |
+|---|---|---|
+| BTC | BLUE / out (cash) | $0.00 |
+| ETH | BLUE / out (cash) | $0.00 |
+| LTC | BLUE / out (cash) | $0.00 |
+| XRP | BLUE / out (cash) | $0.00 |
+
+_No trades this run._
