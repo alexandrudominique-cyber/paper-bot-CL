@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Cross-asset Larsson bot (crypto+stocks+gold+bonds) + bot-vs-DCA."""
+"""Cross-asset Larsson bot (crypto+stocks+gold+bonds) + bot-vs-DCA. Yahoo for stocks."""
 import json, time, datetime, csv, io, traceback
 import urllib.request
 from collections import defaultdict
 
 FEE=0.0015
 CRYPTO="BTC ETH SOL LTC".split()
-STOCKS="SPY QQQ GLD TLT".split()   # S&P500, Nasdaq100, Gold, 20y Treasuries
+STOCKS="SPY QQQ GLD TLT".split()
 
 def smma(v,n):
     o=[None]*len(v)
@@ -46,16 +46,19 @@ def fetch_crypto(sym,pages=3):
     dt=[datetime.datetime.utcfromtimestamp(x[0]//1000).strftime('%Y-%m-%d') for x in rows]
     return dt,[float(x[2]) for x in rows],[float(x[3]) for x in rows],[float(x[4]) for x in rows]
 
-def fetch_stooq(sym):
-    u=f"https://stooq.com/q/d/l/?s={sym.lower()}.us&i=d"
+def fetch_yahoo(sym):
+    u=f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}?interval=1d&range=10y"
+    req=urllib.request.Request(u,headers={"User-Agent":"Mozilla/5.0"})
     try:
-        with urllib.request.urlopen(u,timeout=30) as r: txt=r.read().decode()
+        with urllib.request.urlopen(req,timeout=30) as r: d=json.load(r)
+        res=d["chart"]["result"][0]; ts=res["timestamp"]; q=res["indicators"]["quote"][0]
     except Exception: return [],[],[],[]
-    dt=[];h=[];l=[];c=[]
-    for row in csv.DictReader(io.StringIO(txt)):
-        try: dt.append(row["Date"]);h.append(float(row["High"]));l.append(float(row["Low"]));c.append(float(row["Close"]))
-        except Exception: continue
-    return dt,h,l,c
+    DT=[];H=[];L=[];C=[]
+    for i in range(len(ts)):
+        if None in (q["high"][i],q["low"][i],q["close"][i]): continue
+        DT.append(datetime.datetime.utcfromtimestamp(ts[i]).strftime('%Y-%m-%d'))
+        H.append(q["high"][i]);L.append(q["low"][i]);C.append(q["close"][i])
+    return DT,H,L,C
 
 def sim_bot(retd,sigd,assets,days):
     dates=sorted(retd)[-days:] if days else sorted(retd)
@@ -82,11 +85,7 @@ def dca_basket(cl_by,assets,dates):
         avail=[a for a in assets if d in cl_by[a]]
         if not avail: continue
         for a in avail: units[a]+=(per/len(avail))/cl_by[a][d]
-    val=0.0
-    for a in assets:
-        last=[cl_by[a][d] for d in dates if d in cl_by[a]]
-        if last: val+=units[a]*last[-1]
-    return val
+    return sum(units[a]*[cl_by[a][d] for d in dates if d in cl_by[a]][-1] for a in assets if any(d in cl_by[a] for d in dates))
 
 def main():
     try:
@@ -99,7 +98,7 @@ def main():
                 retd[dt[i]][a]=c[i]/c[i-1]-1; sigd[dt[i]][a]=reg[i-1]
             assets.append(a)
         for a in CRYPTO: add(a,*fetch_crypto(a))
-        for a in STOCKS: add(a,*fetch_stooq(a))
+        for a in STOCKS: add(a,*fetch_yahoo(a))
         if not assets:
             open("BACKTEST_RESULTS.md","w").write("No data loaded."); return
         def block(days,label):
