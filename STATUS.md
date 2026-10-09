@@ -1,14 +1,13 @@
-# Paper bot status - 2026-10-08
+# Paper bot status - 2026-10-09
 
-**Account value: $11,155.74**  (started at $10,000)
-Cash: $-37.52  |  Run #77
+**Account value: $10,785.42**  (started at $10,000)
+Cash: $-37.52  |  Run #78
 
 | Coin | Signal | Position |
 |---|---|---|
-| BTC | GOLD (in) | $2,788.98 |
-| ETH | GOLD (in) | $2,819.26 |
-| LTC | GOLD (in) | $2,830.55 |
-| XRP | GOLD (in) | $2,754.47 |
+| BTC | GOLD (in) | $2,735.65 |
+| ETH | GOLD (in) | $2,709.84 |
+| LTC | GOLD (in) | $2,703.76 |
+| XRP | GOLD (in) | $2,673.69 |
 
-### Trades this run
-- SELL BTC ~$117 @ $83,276.1
+_No trades this run._
