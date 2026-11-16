@@ -1,7 +1,7 @@
-# Paper bot status - 2026-11-15
+# Paper bot status - 2026-11-16
 
 **Account value: $9,101.53**  (started at $10,000)
-Cash: $9,101.53  |  Run #115
+Cash: $9,101.53  |  Run #116
 
 | Coin | Signal | Position |
 |---|---|---|
@@ -10,5 +10,4 @@ Cash: $9,101.53  |  Run #115
 | LTC | BLUE / out (cash) | $0.00 |
 | XRP | BLUE / out (cash) | $0.00 |
 
-### Trades this run
-- SELL BTC ~$2,172 @ $64,115.1
+_No trades this run._
