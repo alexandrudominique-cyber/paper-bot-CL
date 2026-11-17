@@ -1,7 +1,7 @@
-# Paper bot status - 2026-11-16
+# Paper bot status - 2026-11-17
 
 **Account value: $9,101.53**  (started at $10,000)
-Cash: $9,101.53  |  Run #116
+Cash: $9,101.53  |  Run #117
 
 | Coin | Signal | Position |
 |---|---|---|
